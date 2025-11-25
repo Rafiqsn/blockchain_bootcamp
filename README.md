@@ -42,9 +42,10 @@ npm run dev
 
 ---
 
-## 2. Set Config CORS di BE
+## 3. Set Config CORS di BE
 
 ```bash
 main.py
-set url ke localhost
 ```
+set url ke localhost
+
