@@ -1,10 +1,7 @@
 // src/pages/certificates/MyCertificatesPage.tsx
 import React, { useEffect, useState } from "react";
 import { AppLayout } from "../../components/layout/AppLayout";
-import {
-  certificatesApi,
-  Certificate,
-} from "../../api/certificatesApi";
+import { certificatesApi, Certificate } from "../../api/certificatesApi";
 
 const pageWrapperStyle: React.CSSProperties = {
   maxWidth: "1200px",
@@ -118,7 +115,7 @@ const certSubtitleStyle: React.CSSProperties = {
   color: "rgba(148,163,184,0.95)",
 };
 
-const certDateStyle: React.CSSProperties = {
+const certMetaStyle: React.CSSProperties = {
   fontSize: "11px",
   color: "rgba(156,163,175,0.95)",
 };
@@ -138,8 +135,7 @@ const verifyButtonStyle: React.CSSProperties = {
   fontSize: 12,
   fontWeight: 600,
   color: "#e5e7eb",
-  background:
-    "linear-gradient(to right, #22c55e, #14b8a6)",
+  background: "linear-gradient(to right, #22c55e, #14b8a6)",
   boxShadow: "0 14px 30px rgba(34,197,94,0.6)",
 };
 
@@ -274,7 +270,12 @@ const MyCertificatesPage: React.FC = () => {
                     <div style={certSubtitleStyle}>
                       Blockchain Bootcamp · Quiz-Chain Registry
                     </div>
-                    <div style={certDateStyle}>
+                    {/* ⬇️ Certificate ID */}
+                    <div style={certMetaStyle}>
+                      ID: {cert.certificate_id}
+                    </div>
+                    {/* ⬇️ Issued date */}
+                    <div style={certMetaStyle}>
                       Issued at: {formatDate(cert)}
                     </div>
                   </div>
@@ -297,9 +298,7 @@ const MyCertificatesPage: React.FC = () => {
                       disabled={verifyingId === cert.id}
                       onClick={() => handleVerify(cert)}
                     >
-                      {verifyingId === cert.id
-                        ? "Verifying..."
-                        : "Verify "}
+                      {verifyingId === cert.id ? "Verifying..." : "Verify"}
                     </button>
                   )}
                 </div>
