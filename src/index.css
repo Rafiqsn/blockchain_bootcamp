@@ -1,0 +1,21 @@
+/* src/index.css */
+
+html,
+body,
+#root {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+}
+
+body {
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
+    sans-serif;
+  background: radial-gradient(circle at top left, #1d2144 0, #050816 45%, #020617 100%);
+  color: #f9fafb;
+}
+
+/* supaya tidak ada scroll horizontal aneh */
+* {
+  box-sizing: border-box;
+}
