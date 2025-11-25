@@ -218,17 +218,24 @@ const CourseDetailPage: React.FC = () => {
       .finally(() => setLoading(false));
   }, [id]);
 
-  // perhitungan progress & status klaim
+  // ---- Progress & claim status ----
   const totalChapters = chapters.length;
   const completedChapters = chapters.filter((ch) => ch.is_completed).length;
-  const completionRate =
+
+  // pastikan Certificate punya course_id di interface:
+  // course_id: number;
+  const hasClaimedCertificate =
+    !!course &&
+    myCertificates.some((cert) => cert.course_id === course.id);
+
+  // raw progress dari data chapter
+  const rawCompletionRate =
     totalChapters > 0
       ? Math.round((completedChapters / totalChapters) * 100)
       : 0;
 
-  const hasClaimedCertificate =
-    !!course &&
-    myCertificates.some((cert) => cert.course_id === course.id);
+  // 🔒 kalau sudah punya certificate, paksa 100% dan abaikan perubahan submit berikutnya
+  const completionRate = hasClaimedCertificate ? 100 : rawCompletionRate;
 
   const canClaimCertificate = completionRate >= 75 && !hasClaimedCertificate;
 
@@ -248,7 +255,7 @@ const CourseDetailPage: React.FC = () => {
       const res = await certificatesApi.claimCertificate(course.id);
       setClaimMessage(res.message || "Certificate claimed successfully.");
 
-      // tambahkan certificate baru ke state supaya tombol langsung nonaktif
+      // update state supaya langsung dianggap sudah claim
       if (res.data) {
         setMyCertificates((prev) => [...prev, res.data]);
       }
