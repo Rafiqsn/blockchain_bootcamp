@@ -7,12 +7,10 @@ export interface QuizSubmitPayload {
   answer_index: number;
 }
 
-// Sesuaikan dengan response backend-mu.
-// Kalau backend kirim field tambahan tidak masalah (TypeScript akan tetap oke).
 export interface QuizSubmitResult {
-  correct: boolean;
+  is_correct: boolean;
+  correct_answer_index: number;
   message: string;
-  next_chapter_id?: number | null;
 }
 
 export const quizApi = {

@@ -83,6 +83,13 @@ const submitButtonStyle: React.CSSProperties = {
     "0 0 0 1px rgba(129, 140, 248, 0.7), 0 16px 35px rgba(79, 70, 229, 0.7)",
 };
 
+const feedbackBaseStyle: React.CSSProperties = {
+  marginTop: 12,
+  fontSize: 12,
+  padding: "8px 10px",
+  borderRadius: 10,
+};
+
 const ChapterDetailPage: React.FC = () => {
   const { courseId, chapterId } = useParams<{
     courseId: string;
@@ -91,20 +98,24 @@ const ChapterDetailPage: React.FC = () => {
   const navigate = useNavigate();
 
   const [chapter, setChapter] = useState<Chapter | null>(null);
-  const [chaptersInCourse, setChaptersInCourse] = useState<Chapter[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const [selectedAnswer, setSelectedAnswer] = useState<number | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
-  // ✅ tiap pindah chapter, reset pilihan + state submit
+  const [feedback, setFeedback] = useState<string | null>(null);
+  const [feedbackIsError, setFeedbackIsError] = useState(false);
+
+  // reset state ketika pindah chapter
   useEffect(() => {
     setSelectedAnswer(null);
     setSubmitting(false);
+    setFeedback(null);
+    setFeedbackIsError(false);
   }, [chapterId]);
 
-  // ✅ ambil detail 1 chapter
+  // ambil detail chapter
   useEffect(() => {
     if (!chapterId) return;
     const idNum = Number(chapterId);
@@ -125,54 +136,43 @@ const ChapterDetailPage: React.FC = () => {
     })();
   }, [chapterId]);
 
-  // ✅ ambil semua chapter dalam course → untuk cari next chapter
-  useEffect(() => {
-    if (!courseId) return;
-    const cid = Number(courseId);
-    if (Number.isNaN(cid)) return;
-
-    (async () => {
-      try {
-        const res = await chaptersApi.getChaptersByCourse(cid); // ApiResponse<Chapter[]>
-        setChaptersInCourse(res.data);
-      } catch (err) {
-        console.error("Failed to load chapters for course", err);
-      }
-    })();
-  }, [courseId]);
-
-  const goToNextChapterOrBack = () => {
-    if (!chapter || !courseId) return;
-
-    const idx = chaptersInCourse.findIndex((ch) => ch.id === chapter.id);
-    const next = idx >= 0 ? chaptersInCourse[idx + 1] : null;
-
-    if (next) {
-      // next chapter
-      navigate(`/courses/${courseId}/chapters/${next.id}`, { replace: true });
-    } else {
-      // sudah chapter terakhir → balik ke course detail
-      navigate(`/courses/${courseId}`, { replace: true });
-    }
-  };
-
   const handleSubmitQuiz = async () => {
     if (!chapter || selectedAnswer === null) return;
 
     try {
       setSubmitting(true);
+      setFeedback(null);
 
-      // kirim jawaban (benar/salah diurus backend + update is_completed)
-      await quizApi.submitQuiz({
+      const res = await quizApi.submitQuiz({
         chapter_id: chapter.id,
         answer_index: selectedAnswer,
-      });
+      }); // ApiResponse<{ is_correct, correct_answer_index, message }>
 
-      // ❗ tidak perlu tampilkan benar/salah → langsung ke chapter berikutnya
-      goToNextChapterOrBack();
+      const result = res.data;
+      if (!result) {
+        throw new Error("Invalid quiz response from server");
+      }
+
+      if (result.is_correct) {
+        // jawaban benar → tampilkan pesan, lalu balik ke course detail
+        setFeedbackIsError(false);
+        setFeedback(result.message || "Correct answer! Chapter completed.");
+
+        if (courseId) {
+          setTimeout(() => {
+            navigate(`/courses/${courseId}`);
+          }, 900);
+        }
+      } else {
+        // jawaban salah → tampilkan pesan, tetap di halaman ini
+        setFeedbackIsError(true);
+        setFeedback(result.message || "Wrong answer. Please try again.");
+        // user bisa ganti pilihan & submit ulang
+      }
     } catch (err) {
       console.error(err);
-      alert("Gagal mengirim jawaban, coba lagi sebentar lagi.");
+      setFeedbackIsError(true);
+      setFeedback("Failed to submit answer. Please try again in a moment.");
     } finally {
       setSubmitting(false);
     }
@@ -254,7 +254,9 @@ const ChapterDetailPage: React.FC = () => {
                 {chapter.quiz_question}
               </p>
 
-              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              <div
+                style={{ display: "flex", flexDirection: "column", gap: 8 }}
+              >
                 {chapter.quiz_options.map((option, idx) => (
                   <label key={idx} style={optionStyle}>
                     <input
@@ -286,6 +288,23 @@ const ChapterDetailPage: React.FC = () => {
               >
                 {submitting ? "Submitting..." : "Submit answer"}
               </button>
+
+              {feedback && (
+                <p
+                  style={{
+                    ...feedbackBaseStyle,
+                    backgroundColor: feedbackIsError
+                      ? "rgba(127,29,29,0.7)"
+                      : "rgba(22,163,74,0.35)",
+                    border: feedbackIsError
+                      ? "1px solid rgba(248,113,113,0.8)"
+                      : "1px solid rgba(22,163,74,0.8)",
+                    color: feedbackIsError ? "#fee2e2" : "#bbf7d0",
+                  }}
+                >
+                  {feedback}
+                </p>
+              )}
             </section>
 
             <div style={backLinkStyle} onClick={() => navigate(-1)}>

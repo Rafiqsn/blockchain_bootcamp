@@ -50,7 +50,16 @@ const certCardStyle: React.CSSProperties = {
     "0 20px 50px rgba(15,23,42,0.9), 0 0 0 1px rgba(15,23,42,0.9)",
   display: "flex",
   alignItems: "center",
+  justifyContent: "space-between",
   gap: 18,
+};
+
+const leftWrapperStyle: React.CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  gap: 18,
+  minWidth: 0,
+  flex: 1,
 };
 
 const accentStripStyle: React.CSSProperties = {
@@ -84,6 +93,7 @@ const certTextWrapperStyle: React.CSSProperties = {
   display: "flex",
   flexDirection: "column",
   gap: 4,
+  minWidth: 0,
 };
 
 const badgeStyle: React.CSSProperties = {
@@ -113,6 +123,31 @@ const certDateStyle: React.CSSProperties = {
   color: "rgba(156,163,175,0.95)",
 };
 
+const rightMetaStyle: React.CSSProperties = {
+  display: "flex",
+  flexDirection: "column",
+  alignItems: "flex-end",
+  gap: 6,
+};
+
+const verifyButtonStyle: React.CSSProperties = {
+  padding: "10px 20px",
+  borderRadius: 999,
+  border: 0,
+  cursor: "pointer",
+  fontSize: 12,
+  fontWeight: 600,
+  color: "#e5e7eb",
+  background:
+    "linear-gradient(to right, #22c55e, #14b8a6)",
+  boxShadow: "0 14px 30px rgba(34,197,94,0.6)",
+};
+
+const verifiedTextStyle: React.CSSProperties = {
+  fontSize: 11,
+  color: "rgba(190,242,100,0.95)",
+};
+
 const emptyTextStyle: React.CSSProperties = {
   marginTop: 24,
   fontSize: 12,
@@ -129,6 +164,11 @@ const errorBoxStyle: React.CSSProperties = {
   border: "1px solid rgba(248, 113, 113, 0.6)",
 };
 
+const messageStyle: React.CSSProperties = {
+  marginTop: 18,
+  fontSize: 12,
+};
+
 const formatDate = (cert: Certificate): string => {
   const raw = cert.issued_at || cert.created_at;
   if (!raw) return "--";
@@ -143,14 +183,17 @@ const MyCertificatesPage: React.FC = () => {
   const [certificates, setCertificates] = useState<Certificate[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [verifyingId, setVerifyingId] = useState<number | null>(null);
+  const [message, setMessage] = useState<string | null>(null);
 
   useEffect(() => {
     (async () => {
       setLoading(true);
       setError(null);
+      setMessage(null);
 
       try {
-        const res = await certificatesApi.myCertificates(); // ApiResponse<Certificate[]>
+        const res = await certificatesApi.myCertificates();
         setCertificates(res.data);
       } catch (err) {
         console.error(err);
@@ -160,6 +203,30 @@ const MyCertificatesPage: React.FC = () => {
       }
     })();
   }, []);
+
+  const handleVerify = async (cert: Certificate) => {
+    if (cert.on_chain) return;
+
+    try {
+      setVerifyingId(cert.id);
+      setMessage(null);
+
+      // verify by certificate_id, backend return updated certificate
+      const res = await certificatesApi.verify(cert.certificate_id);
+      const updated = res.data;
+
+      setCertificates((prev) =>
+        prev.map((c) => (c.id === updated.id ? updated : c))
+      );
+
+      setMessage(res.message || "Certificate verified on-chain.");
+    } catch (err) {
+      console.error(err);
+      setMessage("Failed to verify certificate. Please try again.");
+    } finally {
+      setVerifyingId(null);
+    }
+  };
 
   return (
     <AppLayout>
@@ -196,23 +263,62 @@ const MyCertificatesPage: React.FC = () => {
           <div style={listWrapperStyle}>
             {certificates.map((cert) => (
               <section key={cert.id} style={certCardStyle}>
-                <div style={accentStripStyle} />
-                <div style={iconCircleStyle}>
-                  <span style={iconLetterStyle}>C</span>
+                <div style={leftWrapperStyle}>
+                  <div style={accentStripStyle} />
+                  <div style={iconCircleStyle}>
+                    <span style={iconLetterStyle}>C</span>
+                  </div>
+                  <div style={certTextWrapperStyle}>
+                    <span style={badgeStyle}>Certificate</span>
+                    <div style={certTitleStyle}>{cert.course_title}</div>
+                    <div style={certSubtitleStyle}>
+                      Blockchain Bootcamp · Quiz-Chain Registry
+                    </div>
+                    <div style={certDateStyle}>
+                      Issued at: {formatDate(cert)}
+                    </div>
+                  </div>
                 </div>
-                <div style={certTextWrapperStyle}>
-                  <span style={badgeStyle}>Certificate</span>
-                  <div style={certTitleStyle}>{cert.course_title}</div>
-                  <div style={certSubtitleStyle}>
-                    Blockchain Bootcamp · Quiz-Chain Registry
-                  </div>
-                  <div style={certDateStyle}>
-                    Issued at: {formatDate(cert)}
-                  </div>
+
+                <div style={rightMetaStyle}>
+                  {cert.on_chain ? (
+                    <span style={verifiedTextStyle}>
+                      Verified on-chain ✅
+                    </span>
+                  ) : (
+                    <button
+                      type="button"
+                      style={{
+                        ...verifyButtonStyle,
+                        opacity: verifyingId === cert.id ? 0.6 : 1,
+                        cursor:
+                          verifyingId === cert.id ? "wait" : "pointer",
+                      }}
+                      disabled={verifyingId === cert.id}
+                      onClick={() => handleVerify(cert)}
+                    >
+                      {verifyingId === cert.id
+                        ? "Verifying..."
+                        : "Verify "}
+                    </button>
+                  )}
                 </div>
               </section>
             ))}
           </div>
+        )}
+
+        {message && (
+          <p
+            style={{
+              ...messageStyle,
+              color: message.toLowerCase().includes("fail")
+                ? "#fecaca"
+                : "#bbf7d0",
+            }}
+          >
+            {message}
+          </p>
         )}
       </div>
     </AppLayout>

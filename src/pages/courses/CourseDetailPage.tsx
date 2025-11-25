@@ -6,6 +6,8 @@ import { coursesApi, Course } from "../../api/coursesApi";
 import { chaptersApi, Chapter } from "../../api/chaptersApi";
 import { certificatesApi, Certificate } from "../../api/certificatesApi";
 
+const REQUIRED_CHAPTERS_FOR_CERT = 2; // sesuai rule backend
+
 const pageWrapperStyle: React.CSSProperties = {
   maxWidth: "1200px",
   margin: "0 auto",
@@ -202,7 +204,7 @@ const CourseDetailPage: React.FC = () => {
     setError(null);
 
     Promise.all([
-      coursesApi.getCourseDetail(courseId),
+      coursesApi.getCourseDetail(courseId), // data: { ..., total_chapters, user_progress }
       chaptersApi.getChaptersByCourse(courseId),
       certificatesApi.myCertificates(),
     ])
@@ -218,32 +220,41 @@ const CourseDetailPage: React.FC = () => {
       .finally(() => setLoading(false));
   }, [id]);
 
-  // ---- Progress & claim status ----
-  const totalChapters = chapters.length;
-  const completedChapters = chapters.filter((ch) => ch.is_completed).length;
+  // ===== Progress & claim status =====
+  const totalChapters =
+    course?.total_chapters ?? chapters.length ?? 0;
 
-  // pastikan Certificate punya course_id di interface:
-  // course_id: number;
+  // jumlah chapter yang user sudah selesaikan menurut backend
+  const progressChaptersBackend = course?.user_progress ?? 0;
+
+  // fallback kalau backend belum kirim, hitung dari flag is_completed
+  const completedChaptersLocal = chapters.filter((ch) => ch.is_completed).length;
+  const progressChapters =
+    progressChaptersBackend || completedChaptersLocal;
+
   const hasClaimedCertificate =
     !!course &&
     myCertificates.some((cert) => cert.course_id === course.id);
 
-  // raw progress dari data chapter
   const rawCompletionRate =
     totalChapters > 0
-      ? Math.round((completedChapters / totalChapters) * 100)
+      ? Math.round((progressChapters / totalChapters) * 100)
       : 0;
 
-  // 🔒 kalau sudah punya certificate, paksa 100% dan abaikan perubahan submit berikutnya
+  // kalau sudah punya certificate, kunci 100%
   const completionRate = hasClaimedCertificate ? 100 : rawCompletionRate;
 
-  const canClaimCertificate = completionRate >= 75 && !hasClaimedCertificate;
+  // ❗ Rule dari backend: minimal 2 chapter completed
+  const isEligibleByProgress =
+    progressChapters >= REQUIRED_CHAPTERS_FOR_CERT;
+
+  const canClaimCertificate = isEligibleByProgress && !hasClaimedCertificate;
 
   const certificatesStatusText = hasClaimedCertificate
     ? "Certificate claimed"
-    : canClaimCertificate
+    : isEligibleByProgress
     ? "Ready to mint"
-    : "Keep learning";
+    : `Complete at least ${REQUIRED_CHAPTERS_FOR_CERT} chapters`;
 
   const handleClaimCertificate = async () => {
     if (!course || !canClaimCertificate) return;
@@ -253,15 +264,25 @@ const CourseDetailPage: React.FC = () => {
       setClaimMessage(null);
 
       const res = await certificatesApi.claimCertificate(course.id);
+
       setClaimMessage(res.message || "Certificate claimed successfully.");
 
-      // update state supaya langsung dianggap sudah claim
       if (res.data) {
         setMyCertificates((prev) => [...prev, res.data]);
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
-      setClaimMessage("Failed to claim certificate. Please try again.");
+
+      // coba ambil pesan dari backend (FastAPI biasanya pakai field "detail")
+      const backendDetail =
+        err?.response?.data?.detail ||
+        err?.response?.data?.message ||
+        err?.message;
+
+      setClaimMessage(
+        backendDetail ||
+          "Failed to claim certificate. Please try again."
+      );
     } finally {
       setClaiming(false);
     }
@@ -341,7 +362,7 @@ const CourseDetailPage: React.FC = () => {
               <div style={metaRowStyle}>
                 <span style={pillStyle}>{course.level ?? "All levels"}</span>
                 <span style={pillStyle}>
-                  {chapters.length} chapter{chapters.length !== 1 && "s"}
+                  {totalChapters} chapter{totalChapters !== 1 && "s"}
                 </span>
               </div>
 
@@ -350,6 +371,15 @@ const CourseDetailPage: React.FC = () => {
                   <div style={statLabelStyle}>Progress</div>
                   <div style={statValueStyle}>
                     {completionRate}% completed
+                  </div>
+                  <div
+                    style={{
+                      marginTop: 2,
+                      fontSize: 11,
+                      color: "rgba(148,163,184,0.9)",
+                    }}
+                  >
+                    {progressChapters}/{totalChapters} chapters
                   </div>
                 </div>
                 <div style={statItemStyle}>
@@ -403,7 +433,8 @@ const CourseDetailPage: React.FC = () => {
                   style={{
                     marginTop: 10,
                     fontSize: 12,
-                    color: claimMessage.toLowerCase().includes("failed")
+                    color: claimMessage.toLowerCase().includes("fail") ||
+                      claimMessage.toLowerCase().includes("must complete")
                       ? "#fecaca"
                       : "#bbf7d0",
                   }}
@@ -429,8 +460,8 @@ const CourseDetailPage: React.FC = () => {
                 Your chapters
               </div>
               <p style={{ fontSize: 12, color: "rgba(148,163,184,0.95)" }}>
-                Work through each chapter in order. Finish them all to unlock
-                your on-chain certificate.
+                Work through each chapter in order. Finish at least{" "}
+                {REQUIRED_CHAPTERS_FOR_CERT} chapters to unlock your certificate.
               </p>
 
               <div style={chapterListStyle}>
