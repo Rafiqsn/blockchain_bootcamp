@@ -3,6 +3,7 @@ import { http } from "./httpClient";
 import { ApiResponse } from "./types";
 
 export interface Certificate {
+  course_id: number;
   id: number;
   certificate_id: string;
   course_title: string;

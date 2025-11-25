@@ -3,9 +3,11 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { AppLayout } from "../../components/layout/AppLayout";
 import { coursesApi, Course } from "../../api/coursesApi";
+import { certificatesApi, Certificate } from "../../api/certificatesApi";
 
 export default function DashboardPage() {
   const [courses, setCourses] = useState<Course[]>([]);
+  const [certificates, setCertificates] = useState<Certificate[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const navigate = useNavigate();
@@ -13,12 +15,20 @@ export default function DashboardPage() {
   useEffect(() => {
     (async () => {
       try {
-        // asumsi response: { success, message, data }
-        const res = await coursesApi.getCourses();
-        setCourses(res.data);
+        setLoading(true);
+        setError("");
+
+        // ambil courses + certificates sekaligus
+        const [coursesRes, certsRes] = await Promise.all([
+          coursesApi.getCourses(),          // ApiResponse<Course[]>
+          certificatesApi.myCertificates(), // ApiResponse<Certificate[]>
+        ]);
+
+        setCourses(coursesRes.data);
+        setCertificates(certsRes.data);
       } catch (err: any) {
         console.error(err);
-        setError("Failed to load courses");
+        setError("Failed to load dashboard data");
       } finally {
         setLoading(false);
       }
@@ -26,7 +36,8 @@ export default function DashboardPage() {
   }, []);
 
   const activeCourses = courses.length;
-  const certificatesReady = 0;
+  // di sini definisi "Certificates ready" = jumlah sertifikat yang sudah kamu miliki
+  const certificatesReady = certificates.length;
 
   return (
     <AppLayout>
@@ -104,6 +115,7 @@ export default function DashboardPage() {
                 gap: 12,
               }}
             >
+              {/* Active courses */}
               <div
                 style={{
                   borderRadius: 18,
@@ -124,6 +136,7 @@ export default function DashboardPage() {
                 </div>
               </div>
 
+              {/* Certificates ready */}
               <div
                 style={{
                   borderRadius: 18,
@@ -144,6 +157,7 @@ export default function DashboardPage() {
                 </div>
               </div>
 
+              {/* Time to next quiz */}
               <div
                 style={{
                   borderRadius: 18,

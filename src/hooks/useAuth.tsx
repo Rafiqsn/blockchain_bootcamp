@@ -22,6 +22,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
 
+  // ambil user dari localStorage saat pertama kali load
   useEffect(() => {
     const storedUser = localStorage.getItem("user");
 
@@ -39,35 +40,61 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setLoading(false);
   }, []);
 
-  const handleAuthSuccess = (rawRes: any) => {
-  // backend kirim { success, message, data: { access_token, token_type, user } }
-  const payload = rawRes.data ?? rawRes; // kalau nanti authApi sudah mengembalikan data langsung
+  /**
+   * Normalisasi response login:
+   * - bisa langsung `AuthResponse`
+   * - atau `ApiResponse<AuthResponse>` yang dibungkus `data`
+   */
+  const handleAuthSuccess = (raw: AuthResponse | { data: AuthResponse }) => {
+    // kalau ada .data pakai itu, kalau tidak pakai objeknya langsung
+    const payload: AuthResponse = (raw as any).data ?? (raw as AuthResponse);
 
-  const accessToken = payload.access_token;
-  const user = payload.user;
+    const accessToken = payload.access_token;
+    const user = payload.user;
 
-  if (!accessToken || !user) {
-    console.error("Invalid auth response shape:", rawRes);
-    throw new Error("Invalid auth response from server");
-  }
+    if (!accessToken || !user) {
+      console.error("Invalid auth response shape:", raw);
+      throw new Error("Invalid auth response from server");
+    }
 
-  localStorage.setItem("token", accessToken);
-  localStorage.setItem("user", JSON.stringify(user));
-  setUser(user);
-  setLoading(false);
-};
-
+    localStorage.setItem("token", accessToken);
+    localStorage.setItem("user", JSON.stringify(user));
+    setUser(user);
+    setLoading(false);
+  };
 
   const login = async (email: string, password: string) => {
     setLoading(true);
-    const res = await authApi.login({ email, password });
-    handleAuthSuccess(res);
+    try {
+      const res = await authApi.login({ email, password }); // <== AuthResponse atau ApiResponse<AuthResponse>
+      handleAuthSuccess(res);
+    } catch (err) {
+      setLoading(false);
+      throw err;
+    }
   };
 
-  const register = async (username: string, email: string, password: string) => {
+  /**
+   * Register TIDAK lagi memaksa shape response punya access_token.
+   * Setelah register sukses, kita auto-login pakai email & password yang sama.
+   */
+  const register = async (
+    username: string,
+    email: string,
+    password: string
+  ) => {
     setLoading(true);
-    const res = await authApi.register({ username, email, password });
-    handleAuthSuccess(res);
+    try {
+      // backend register biasanya balikin { success, message, data: { user } } tanpa token
+      await authApi.register({ username, email, password });
+
+      // auto login setelah register berhasil
+      const loginRes = await authApi.login({ email, password });
+      handleAuthSuccess(loginRes);
+    } catch (err) {
+      setLoading(false);
+      throw err;
+    }
   };
 
   const logout = () => {

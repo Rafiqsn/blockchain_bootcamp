@@ -392,7 +392,7 @@ export default function RegisterPage() {
     setLoading(true);
     try {
       await register(username, email, password);
-      navigate("/");
+      navigate("/login");
     } catch (err: any) {
       setError(err?.message || "Failed to register. Please try again.");
     } finally {
